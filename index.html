@@ -848,14 +848,16 @@ function Uniforms(prog) {
 }
 
 // ── Vertex shader ───────────────────────────────────────────────
-const VS = `
-attribute vec2 a_pos;
+const VS = `#version 300 es
+in vec2 a_pos;
 void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
 `;
 
 // ── Fragment shader ──────────────────────────────────────────────
-const FS = `
+const FS = `#version 300 es
 precision highp float;
+
+out vec4 fragColor;
 
 uniform vec2  u_res;
 uniform float u_ar;
@@ -910,7 +912,7 @@ vec3 bg(vec2 uv) {
   if (u_bg_type > 0.5) {
     // Use texture() — works for any texture unit bound to u_bg_tex
     // uv.x goes 0→1 left to right; 1.0-uv.y because WebGL textures are bottom-up
-    return texture2D(u_bg_tex, vec2(clamp(uv.x, 0.0, 1.0), 1.0 - clamp(uv.y, 0.0, 1.0))).rgb * u_bgb;
+    return texture(u_bg_tex, vec2(clamp(uv.x, 0.0, 1.0), 1.0 - clamp(uv.y, 0.0, 1.0))).rgb * u_bgb;
   }
   float g = uv.x*0.07 + uv.y*0.03;
   float b = uv.x*0.04 + uv.y*0.05;
@@ -1034,7 +1036,7 @@ void main() {
   // ── debug passes ──────────────────────────────────────────
   if (u_debug_pass > 0.5) {
     if (u_debug_pass < 1.5) {                        // pass 1: raw bg texture
-      color = texture2D(u_bg_tex, vec2(clamp(uv.x,0.0,1.0),1.0-clamp(uv.y,0.0,1.0))).rgb;
+      color = texture(u_bg_tex, vec2(clamp(uv.x,0.0,1.0),1.0-clamp(uv.y,0.0,1.0))).rgb;
       color = pow(color, vec3(0.5));
     } else if (u_debug_pass < 2.5) {                 // pass 2: geometry mask
       color = vec3(hit);
@@ -1081,7 +1083,7 @@ void main() {
         color = vec3(refractUV, 0.0);
       }
     }
-    gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+    fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
     return;
   }
   // ── normal passes ──────────────────────────────────────────
@@ -1105,9 +1107,8 @@ void main() {
   color = (color - 0.02) / (1.05 - 0.02);
   color = pow(color, vec3(0.5));
 
-  gl_FragColor = vec4(color, 1.0);
-}
-`;
+  fragColor = vec4(color, 1.0);
+}`;
 
 // ── Compile ──────────────────────────────────────────────────────
 const prog = createProgram(VS, FS);
@@ -1129,6 +1130,14 @@ const uBgTex  = gl.getUniformLocation(prog, 'u_bg_tex');
 const uBgType = gl.getUniformLocation(prog, 'u_bg_type');
 const uDebug  = gl.getUniformLocation(prog, 'u_debug_pass');
 let bgType = 0; // 0=procedural, 1=texture
+
+// ── Geometry Buffer (quad) ────────────────────────────────────
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
 function loadBgImage(url) {
   if (!url) {
@@ -1253,6 +1262,15 @@ window._loadTestBg = function(path) {
 // Call _testSolidBg() in browser console after page loads.
 // Hardcodes default P values to avoid P-not-initialized errors.
 window._testSolidBg = function() {
+  // Create buf buffer if it doesn't exist
+  if (typeof buf === 'undefined') {
+    buf = gl.createBuffer();
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(prog, 'a_pos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
   // 2x2 RGBA: red, green, blue, yellow corners
   const data = new Uint8Array([
     255, 0, 0, 255,   0, 255, 0, 255,
@@ -1289,12 +1307,6 @@ window._testSolidBg = function() {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   console.log('[DEBUG] 2x2 solid BG drawn, toDataURL len=' + document.querySelector('canvas').toDataURL().length);
 };
-
-gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-const aPos = gl.getAttribLocation(prog, 'a_pos');
-gl.enableVertexAttribArray(aPos);
-gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
 // ── Parameters ───────────────────────────────────────────────────
 const P = {
