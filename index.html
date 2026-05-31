@@ -500,6 +500,7 @@
   <span class="export-label">Export</span>
   <button id="export_png_btn" class="bg-load-btn">📥 Export PNG</button>
   <button id="copy_clipboard_btn" class="bg-load-btn">📋 Copy to Clipboard</button>
+  <button id="debug_export" class="bg-load-btn">🔬 Debug Layers</button>
 </div>
 
 <div class="tabs">
@@ -792,7 +793,7 @@ const canvas = document.getElementById('c');
 
 // ── WebGL 2.0 auto-detect with fallback ───────────────────────────
 let gl2 = null;
-try { gl2 = canvas.getContext('webgl2', { antialias: false, alpha: false }); } catch(e) {}
+try { gl2 = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: true }); } catch(e) {}
 
 let glVersion = 1;
 let ext_float = false;
@@ -803,7 +804,7 @@ if (gl2) {
   const ext = gl.getExtension('OES_texture_float_linear');
   if (ext) ext_float = true;
 } else {
-  gl = canvas.getContext('webgl', { antialias: false, alpha: false });
+  gl = canvas.getContext('webgl', { antialias: false, alpha: false, preserveDrawingBuffer: true });
 }
 if (!gl) alert('WebGL not supported');
 
@@ -883,6 +884,7 @@ uniform float u_border;
 uniform float u_seed;
 uniform sampler2D u_bg_tex;
 uniform float u_bg_type; // 0=procedural, 1=texture
+uniform float u_debug_pass;
 
 #define PI 3.14159265358979
 
@@ -1029,6 +1031,61 @@ void main() {
   // Background
   vec3 color = bg(uv);
 
+  // ── debug passes ──────────────────────────────────────────
+  if (u_debug_pass > 0.5) {
+    if (u_debug_pass < 1.5) {                        // pass 1: raw bg texture
+      color = texture2D(u_bg_tex, vec2(clamp(uv.x,0.0,1.0),1.0-clamp(uv.y,0.0,1.0))).rgb;
+      color = pow(color, vec3(0.5));
+    } else if (u_debug_pass < 2.5) {                 // pass 2: geometry mask
+      color = vec3(hit);
+    } else if (u_debug_pass < 3.5) {                 // pass 3: jade normal
+      if (hit > 0.5) {
+        vec2 n2d = jadeNormal2D(coord, hw, hh);
+        color = vec3(n2d * 0.5 + 0.5, 0.5);
+      }
+    } else if (u_debug_pass < 4.5) {                 // pass 4: jade shading (no composite)
+      if (hit > 0.5) {
+        vec2 n2d = jadeNormal2D(coord, hw, hh);
+        float thick = jadeThickness(coord, hw, hh);
+        color = shadeJade(uv, n2d, thick, hw, hh);
+      }
+    } else if (u_debug_pass < 5.5) {                 // pass 5: fresnel
+      if (hit > 0.5) {
+        vec2 n2d = jadeNormal2D(coord, hw, hh);
+        float nz = sqrt(clamp(1.0 - dot(n2d, n2d), 0.0, 1.0));
+        vec3 N3 = vec3(n2d, nz);
+        float F0 = pow((u_ior - 1.0) / (u_ior + 1.0), 2.0);
+        float fr = fresnel(dot(N3, vec3(0,0,1)), F0);
+        color = vec3(fr);
+      }
+    } else if (u_debug_pass < 6.5) {                 // pass 6: SSS contribution
+      if (hit > 0.5) {
+        vec2 n2d = jadeNormal2D(coord, hw, hh);
+        float nz = sqrt(clamp(1.0 - dot(n2d, n2d), 0.0, 1.0));
+        vec3 N3 = vec3(n2d, nz);
+        float thick = jadeThickness(coord, hw, hh);
+        vec3 Tdir = normalize(vec3(n2d * 0.4, 1.0));
+        float alignment = clamp(dot(vec3(0,0,1).xy, Tdir.xy) * 0.5 + 0.5, 0.0, 1.0);
+        float sssAtten = exp(-thick * 5.0);
+        vec3 sssColor = u_sss_color * alignment * sssAtten * u_sss;
+        color = sssColor;
+      }
+    } else if (u_debug_pass < 7.5) {                // pass 7: refraction UV
+      if (hit > 0.5) {
+        vec2 n2d = jadeNormal2D(coord, hw, hh);
+        float sinIn = dot(n2d, vec2(0.0, 1.0));
+        float sinOut = sinIn / u_ior;
+        vec2 refractOffset = n2d * (sinOut - sinIn) * u_refr;
+        vec2 p = coord * 0.5 + 0.5;
+        vec2 refractUV = clamp(p + refractOffset, 0.0, 1.0);
+        color = vec3(refractUV, 0.0);
+      }
+    }
+    gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+    return;
+  }
+  // ── normal passes ──────────────────────────────────────────
+
   // Shade jade region
   if (hit > 0.5) {
     vec2 n2d = jadeNormal2D(coord, hw, hh);
@@ -1070,6 +1127,7 @@ gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 
 const uBgTex  = gl.getUniformLocation(prog, 'u_bg_tex');
 const uBgType = gl.getUniformLocation(prog, 'u_bg_type');
+const uDebug  = gl.getUniformLocation(prog, 'u_debug_pass');
 let bgType = 0; // 0=procedural, 1=texture
 
 function loadBgImage(url) {
@@ -1129,7 +1187,109 @@ document.getElementById('bg_file').addEventListener('change', e => {
   img.src = url;
 });
 
-const buf = gl.createBuffer();
+// ── Debug: export intermediate render results ──────────────────
+function exportLayer(name, pixels, w, h) {
+  const c2 = document.createElement('canvas');
+  c2.width = w; c2.height = h;
+  const ctx = c2.getContext('2d');
+  const imgData = ctx.createImageData(w, h);
+  imgData.data.set(new Uint8ClampedArray(pixels));
+  ctx.putImageData(imgData, 0, 0);
+  const a = document.createElement('a');
+  a.href = c2.toDataURL('image/png');
+  a.download = name + '.png';
+  a.click();
+}
+
+function exportAllLayers() {
+  const c = document.querySelector('canvas');
+  // drawImage reads live pixels from the WebGL buffer at call time,
+  // reliable even without preserveDrawingBuffer
+  const c2 = document.createElement('canvas');
+  c2.width = c.width; c2.height = c.height;
+  const ctx2 = c2.getContext('2d');
+  const labels = ['00_normal','01_bg_texture','02_geometry','03_normal','04_shading','05_fresnel','06_sss','07_refraction'];
+  for (let pass = 0; pass <= 7; pass++) {
+    gl.uniform1f(uDebug, pass);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // Sync capture: drawImage reads pixels synchronously
+    ctx2.drawImage(c, 0, 0);
+    const a = document.createElement('a');
+    a.href = c2.toDataURL('image/png');
+    a.download = labels[pass] + '.png';
+    a.click();
+  }
+  gl.uniform1f(uDebug, 0);
+}
+
+document.getElementById('debug_export').addEventListener('click', exportAllLayers);
+
+// ── Debug: hardcoded local BG texture for verification ──────────────────
+// Call _loadTestBg() in browser console to load a test image without file upload.
+// Replace 'test_bg.png' with any path accessible from the HTTP server.
+window._loadTestBg = function(path) {
+  const url = 'http://localhost:8765/' + path;
+  console.log('[DEBUG] Loading test BG from:', url);
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, bgTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    bgType = 1;
+    gl.uniform1f(uBgType, 1.0);
+    render();
+    console.log('[DEBUG] Test BG loaded, bgType=1, img size:', img.width, 'x', img.height);
+  };
+  img.onerror = () => { console.error('[DEBUG] Failed to load:', url); };
+  img.src = url;
+};
+
+// ── Debug: 2x2 solid color test texture ────────────────────────────────
+// Call _testSolidBg() in browser console after page loads.
+// Hardcodes default P values to avoid P-not-initialized errors.
+window._testSolidBg = function() {
+  // 2x2 RGBA: red, green, blue, yellow corners
+  const data = new Uint8Array([
+    255, 0, 0, 255,   0, 255, 0, 255,
+    0, 0, 255, 255,   255, 255, 0, 255
+  ]);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, bgTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  bgType = 1;
+  gl.useProgram(prog);
+  // Hardcoded defaults matching initial P
+  gl.uniform1f(u.u_ar, 1.96);     gl.uniform1f(u.u_scale, 1.00);
+  gl.uniform1f(u.u_radius, 0.055); gl.uniform1f(u.u_border, 0.000);
+  gl.uniform1f(u.u_rho, 0.00);    gl.uniform1f(u.u_hue, 0.000);
+  gl.uniform1f(u.u_sat, 0.75);    gl.uniform1f(u.u_lig, 0.30);
+  gl.uniform1f(u.u_sha, 0.35);   gl.uniform1f(u.u_spe, 0.55);
+  gl.uniform1f(u.u_sp2, 0.20);   gl.uniform1f(u.u_sss, 0.65);
+  gl.uniform1f(u.u_sss_c, 0.65);  gl.uniform1f(u.u_sp_p, 32.0);
+  gl.uniform1f(u.u_sp_i, 0.30);   gl.uniform1f(u.u_rim, 0.40);
+  gl.uniform1f(u.u_lx, 0.55);     gl.uniform1f(u.u_ly, 0.65);
+  gl.uniform1f(u.u_lz, 1.50);     gl.uniform1f(u.u_ar2, 1.00);
+  gl.uniform1f(u.u_sx, 0.00);     gl.uniform1f(u.u_sy, 0.00);
+  gl.uniform1f(u.u_abs_r, 3.20);  gl.uniform1f(u.u_abs_g, 0.45);
+  gl.uniform1f(u.u_abs_b, 2.40);  gl.uniform1f(u.u_refr, 0.18);
+  gl.uniform1f(u.u_vign, 0.50);   gl.uniform1f(u.u_bgb, 1.00);
+  gl.uniform1f(u.u_seed, 42.0);
+  gl.uniform1i(uBgTex, 0);
+  gl.uniform1f(uBgType, 1.0);
+  gl.uniform1f(uDebug, 0.0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  console.log('[DEBUG] 2x2 solid BG drawn, toDataURL len=' + document.querySelector('canvas').toDataURL().length);
+};
+
 gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
 const aPos = gl.getAttribLocation(prog, 'a_pos');
