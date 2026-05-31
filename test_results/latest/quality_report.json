@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-05-31T10:12:39.204527",
+  "overall_score": 100.0,
+  "grade": "A",
+  "all_passed": true,
+  "modules": [
+    {
+      "name": "Shader & WebGL",
+      "passed": 22,
+      "failed": 0,
+      "total": 22,
+      "pass": true
+    },
+    {
+      "name": "Functional",
+      "passed": 40,
+      "failed": 0,
+      "total": 40,
+      "pass": true
+    },
+    {
+      "name": "Code Quality",
+      "passed": 19,
+      "failed": 0,
+      "total": 19,
+      "pass": true
+    }
+  ]
+}

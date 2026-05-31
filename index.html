@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jade Glass Control — WebGL</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #080a0e;
+    --panel:        #111318;
+    --panel-hover:  #151820;
+    --border:       #1e2432;
+    --border-bright:#2a3548;
+    --text:         #b8c4d4;
+    --text-dim:     #4a5568;
+    --jade:         #2aaa50;
+    --jade-bright:  #40e070;
+    --jade-dark:    #1a7034;
+    --accent:       #80ffcc;
+    --track:        #1a2030;
+    --track-fill:   #1e3828;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Pro Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 24px 16px 40px;
+    gap: 0;
+  }
+
+  /* ── Header ─────────────────────────────────────────── */
+  .header {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--jade-bright);
+    letter-spacing: 0.04em;
+  }
+  .header-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.03em;
+  }
+
+  /* ── Canvas ─────────────────────────────────────────── */
+  .canvas-wrap {
+    width: 100%;
+    max-width: 720px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 32px rgba(0,0,0,0.7),
+      0 0 80px rgba(42,170,80,0.04),
+      inset 0 0 0 1px rgba(42,170,80,0.04);
+    background: #000;
+    position: relative;
+  }
+  canvas { display: block; width: 100%; height: auto; }
+
+  /* ── Tabs ───────────────────────────────────────────── */
+  .tabs {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    gap: 2px;
+    margin-top: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .tab {
+    flex: 1;
+    padding: 7px 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tab:hover { color: var(--text); background: var(--panel-hover); }
+  .tab.active {
+    background: var(--jade-dark);
+    color: var(--jade-bright);
+  }
+
+  /* ── Panel ─────────────────────────────────────────── */
+  .panel {
+    width: 100%;
+    max-width: 720px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 20px 24px 24px;
+    display: none;
+  }
+  .panel.active { display: block; }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .param-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 32px;
+    margin-bottom: 20px;
+  }
+
+  /* ── Slider ────────────────────────────────────────── */
+  .ctrl {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .ctrl-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .ctrl-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .ctrl-val {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--jade);
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    letter-spacing: 0;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--track);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    position: relative;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(
+      to right,
+      var(--jade-dark) var(--pct, 0%),
+      var(--track) var(--pct, 0%)
+    );
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--jade-bright);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(64,224,112,0.5);
+    cursor: pointer;
+    margin-top: -5px;
+    transition: box-shadow 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 10px rgba(64,224,112,0.8);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--jade-bright);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+  }
+  input[type=range]::-moz-range-track {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--track);
+  }
+  input[type=range]::-moz-range-progress {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--jade-dark);
+  }
+
+  /* ── BG URL row ─────────────────────────────────────────── */
+  .bg-url-row {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .bg-url-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .bg-url-input {
+    flex: 1;
+    background: var(--track);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    font-family: 'SF Mono', monospace;
+    transition: border-color 0.15s;
+  }
+  .bg-file-input {
+    flex: 1;
+    background: var(--track);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .bg-file-input::file-selector-button {
+    background: var(--jade-dark);
+    color: var(--jade-bright);
+    border: none;
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-right: 8px;
+  }
+  .bg-file-input:focus { border-color: var(--jade); }
+  .bg-load-btn {
+    padding: 6px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--jade-dark);
+    color: var(--jade-bright);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .bg-load-btn:hover { background: var(--jade); }
+
+  /* ── Sub-label / hint ────────────────────────────────── */
+  .ctrl-hint {
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* ── Color row ──────────────────────────────────── */
+  .color-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .color-row input[type=range] { flex: 1; }
+
+  /* ── Footer hint ────────────────────────────────── */
+  .footer {
+    margin-top: 16px;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+
+  @media (max-width: 500px) {
+    .param-grid { grid-template-columns: 1fr; gap: 12px 0; }
+    .tabs { gap: 1px; padding: 3px; }
+    .panel { padding: 16px 16px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">Jade Glass Control</span>
+  <span class="header-sub">WebGL Shader — Real-time Material Preview</span>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="c" width="720" height="450"></canvas>
+</div>
+
+<div class="bg-url-row">
+  <span class="bg-url-label">BG Image</span>
+  <input type="file" id="bg_file" accept="image/*" class="bg-file-input">
+  <button id="bg_clear" class="bg-load-btn">Reset</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="geometry">Geometry</button>
+  <button class="tab" data-tab="material">Material</button>
+  <button class="tab" data-tab="lighting">Lighting</button>
+  <button class="tab" data-tab="advanced">Advanced</button>
+</div>
+
+<!-- Geometry Panel -->
+<div class="panel active" id="panel-geometry">
+  <div class="section-label">Shape</div>
+  <div class="param-grid">
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Aspect Ratio</span>
+        <span class="ctrl-val" id="v_ar">1.96</span>
+      </div>
+      <input type="range" id="s_ar" min="0.5" max="4.0" step="0.01" value="1.96">
+      <div class="ctrl-hint">Width / Height of the control</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Control Scale</span>
+        <span class="ctrl-val" id="v_scale">1.00</span>
+      </div>
+      <input type="range" id="s_scale" min="0.3" max="2.0" step="0.01" value="1.00">
+      <div class="ctrl-hint">Relative size vs canvas</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Corner Radius</span>
+        <span class="ctrl-val" id="v_radius">0.055</span>
+      </div>
+      <input type="range" id="s_radius" min="0.005" max="0.25" step="0.001" value="0.055">
+      <div class="ctrl-hint">Rounded corner radius</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Border Width</span>
+        <span class="ctrl-val" id="v_border">0.000</span>
+      </div>
+      <input type="range" id="s_border" min="0.0" max="0.025" step="0.001" value="0.0">
+      <div class="ctrl-hint">Stroke width at edge (future)</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Canvas Width</span>
+        <span class="ctrl-val" id="v_cw">720</span>
+      </div>
+      <input type="range" id="s_cw" min="320" max="1280" step="1" value="720">
+      <div class="ctrl-hint">Canvas pixel width</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Canvas Height</span>
+        <span class="ctrl-val" id="v_ch">450</span>
+      </div>
+      <input type="range" id="s_ch" min="200" max="800" step="1" value="450">
+      <div class="ctrl-hint">Canvas pixel height</div>
+    </div>
+  </div>
+</div>
+
+<!-- Material Panel -->
+<div class="panel" id="panel-material">
+  <div class="section-label">Refraction &amp; Base Color</div>
+  <div class="param-grid">
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">IOR</span>
+        <span class="ctrl-val" id="v_ior">1.52</span>
+      </div>
+      <input type="range" id="s_ior" min="1.20" max="2.00" step="0.01" value="1.52">
+      <div class="ctrl-hint">Index of refraction (glass ~1.5, diamond ~2.4)</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Thickness</span>
+        <span class="ctrl-val" id="v_thick">0.060</span>
+      </div>
+      <input type="range" id="s_thick" min="0.005" max="0.20" step="0.001" value="0.060">
+      <div class="ctrl-hint">Center thickness (Beer-Lambert depth)</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Jade Hue</span>
+        <span class="ctrl-val" id="v_hue">0°</span>
+      </div>
+      <input type="range" id="s_hue" min="-180" max="180" step="1" value="0">
+      <div class="ctrl-hint">Hue shift of jade color (−180° to +180°)</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Jade Saturation</span>
+        <span class="ctrl-val" id="v_sat">0.75</span>
+      </div>
+      <input type="range" id="s_sat" min="0.0" max="1.0" step="0.01" value="0.75">
+      <div class="ctrl-hint">Color vividness</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Jade Lightness</span>
+        <span class="ctrl-val" id="v_light">0.30</span>
+      </div>
+      <input type="range" id="s_light" min="0.0" max="0.6" step="0.01" value="0.30">
+      <div class="ctrl-hint">Overall brightness of jade color</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Glassiness</span>
+        <span class="ctrl-val" id="v_glass">0.50</span>
+      </div>
+      <input type="range" id="s_glass" min="0.0" max="1.0" step="0.01" value="0.50">
+      <div class="ctrl-hint">Transmission vs reflection balance</div>
+    </div>
+  </div>
+</div>
+
+<!-- Lighting Panel -->
+<div class="panel" id="panel-lighting">
+  <div class="section-label">Subsurface Scattering</div>
+  <div class="param-grid">
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">SSS Strength</span>
+        <span class="ctrl-val" id="v_sss">0.65</span>
+      </div>
+      <input type="range" id="s_sss" min="0.0" max="2.0" step="0.01" value="0.65">
+      <div class="ctrl-hint">Subsurface scattering intensity</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">SSS Color</span>
+        <span class="ctrl-val" id="v_sss_color">#8CD352</span>
+      </div>
+      <div class="color-row">
+        <input type="range" id="s_sss_r" min="0" max="255" step="1" value="140" style="color:#ff4444">
+        <input type="range" id="s_sss_g" min="0" max="255" step="1" value="211" style="color:#44ff44">
+        <input type="range" id="s_sss_b" min="0" max="255" step="1" value="50" style="color:#4444ff">
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label" style="margin-top:18px">Specular &amp; Rim</div>
+  <div class="param-grid">
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Specular Power</span>
+        <span class="ctrl-val" id="v_spec_p">32</span>
+      </div>
+      <input type="range" id="s_spec_p" min="4" max="128" step="1" value="32">
+      <div class="ctrl-hint">Highlight sharpness (higher = sharper)</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Specular Intensity</span>
+        <span class="ctrl-val" id="v_spec_i">0.30</span>
+      </div>
+      <input type="range" id="s_spec_i" min="0.0" max="1.0" step="0.01" value="0.30">
+      <div class="ctrl-hint">Phong specular multiplier</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Rim Intensity</span>
+        <span class="ctrl-val" id="v_rim">0.40</span>
+      </div>
+      <input type="range" id="s_rim" min="0.0" max="1.5" step="0.01" value="0.40">
+      <div class="ctrl-hint">Edge glow strength</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Light X</span>
+        <span class="ctrl-val" id="v_lx">0.55</span>
+      </div>
+      <input type="range" id="s_lx" min="-1.0" max="1.0" step="0.01" value="0.55">
+      <div class="ctrl-hint">Light horizontal direction</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Light Y</span>
+        <span class="ctrl-val" id="v_ly">0.65</span>
+      </div>
+      <input type="range" id="s_ly" min="-1.0" max="1.0" step="0.01" value="0.65">
+      <div class="ctrl-hint">Light vertical direction</div>
+    </div>
+  </div>
+</div>
+
+<!-- Advanced Panel -->
+<div class="panel" id="panel-advanced">
+  <div class="section-label">Beer-Lambert Absorption</div>
+  <div class="param-grid">
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">R Absorption</span>
+        <span class="ctrl-val" id="v_abs_r">3.20</span>
+      </div>
+      <input type="range" id="s_abs_r" min="0.0" max="8.0" step="0.05" value="3.20">
+      <div class="ctrl-hint">Red channel absorption (higher = red blocked)</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">G Absorption</span>
+        <span class="ctrl-val" id="v_abs_g">0.45</span>
+      </div>
+      <input type="range" id="s_abs_g" min="0.0" max="8.0" step="0.05" value="0.45">
+      <div class="ctrl-hint">Green channel absorption (green passes through)</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">B Absorption</span>
+        <span class="ctrl-val" id="v_abs_b">2.40</span>
+      </div>
+      <input type="range" id="s_abs_b" min="0.0" max="8.0" step="0.05" value="2.40">
+      <div class="ctrl-hint">Blue channel absorption</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Refraction Scale</span>
+        <span class="ctrl-val" id="v_refr">0.18</span>
+      </div>
+      <input type="range" id="s_refr" min="0.0" max="0.5" step="0.01" value="0.18">
+      <div class="ctrl-hint">How much the background bends through glass</div>
+    </div>
+  </div>
+
+  <div class="section-label" style="margin-top:18px">Post-processing</div>
+  <div class="param-grid">
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">Vignette</span>
+        <span class="ctrl-val" id="v_vign">0.30</span>
+      </div>
+      <input type="range" id="s_vign" min="0.0" max="1.0" step="0.01" value="0.30">
+      <div class="ctrl-hint">Corner darkening intensity</div>
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-header">
+        <span class="ctrl-label">BG Brightness</span>
+        <span class="ctrl-val" id="v_bgb">1.00</span>
+      </div>
+      <input type="range" id="s_bgb" min="0.0" max="2.0" step="0.01" value="1.00">
+      <div class="ctrl-hint">Background overall brightness</div>
+    </div>
+  </div>
+</div>
+
+<p class="footer">实时渲染 · 拖动滑杆即时更新 · WebGL fragment shader</p>
+
+<script>
+/* ===================================================================
+   Jade Glass Control — WebGL Phase 1: Interface + Shader
+   =================================================================== */
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { antialias: false, alpha: false });
+if (!gl) alert('WebGL not supported');
+
+// ── Shader helpers ──────────────────────────────────────────────
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function createProgram(vsrc, fsrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsrc));
+  gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+    throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+function Uniforms(prog) {
+  const u = {};
+  const n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) {
+    const info = gl.getActiveUniform(prog, i);
+    u[info.name] = gl.getUniformLocation(prog, info.name);
+  }
+  return u;
+}
+
+// ── Vertex shader ───────────────────────────────────────────────
+const VS = `
+attribute vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+// ── Fragment shader ──────────────────────────────────────────────
+const FS = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform float u_ar;
+uniform float u_scale;
+uniform float u_radius;
+uniform float u_ior;
+uniform float u_hue;
+uniform float u_sat;
+uniform float u_light;
+uniform float u_thick;
+uniform float u_glass;
+uniform float u_sss;
+uniform vec3  u_sss_color;
+uniform float u_spec_p;
+uniform float u_spec_i;
+uniform float u_rim;
+uniform float u_lx;
+uniform float u_ly;
+uniform float u_abs_r;
+uniform float u_abs_g;
+uniform float u_abs_b;
+uniform float u_refr;
+uniform float u_vign;
+uniform float u_bgb;
+uniform float u_border;
+uniform float u_seed;
+uniform sampler2D u_bg_tex;
+uniform float u_bg_type; // 0=procedural, 1=texture
+
+#define PI 3.14159265358979
+
+/* ── HSL → RGB ──────────────────────────────────────────────── */
+vec3 hsl2rgb(vec3 c) {
+  vec3 rgb = clamp(abs(mod(c.x*6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  return c.z + c.y * (rgb - 0.5) * (1.0 - abs(2.0*c.z - 1.0));
+}
+
+/* ── hash / noise ────────────────────────────────────────────── */
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), f.x),
+             mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y);
+}
+
+/* ── procedural background ──────────────────────────────────── */
+vec3 bg(vec2 uv) {
+  if (u_bg_type > 0.5) {
+    // Use texture() — works for any texture unit bound to u_bg_tex
+    // uv.x goes 0→1 left to right; 1.0-uv.y because WebGL textures are bottom-up
+    return texture2D(u_bg_tex, vec2(clamp(uv.x, 0.0, 1.0), 1.0 - clamp(uv.y, 0.0, 1.0))).rgb * u_bgb;
+  }
+  float g = uv.x*0.07 + uv.y*0.03;
+  float b = uv.x*0.04 + uv.y*0.05;
+  float r2= uv.x*0.02 + uv.y*0.03;
+  vec3 c = vec3(g*0.6 + 0.03, b*0.5 + 0.03, r2*0.4 + 0.03);
+  float cx = 0.5, cy = 0.45;
+  float dist = length((uv - vec2(cx, cy)) * vec2(u_res.x/u_res.y, 1.0));
+  c += vec3(0.25, 0.35, 0.20) * exp(-dist*4.0) * 0.40;
+  c *= u_bgb;
+  return clamp(c, 0.0, 1.0);
+}
+
+/* ── rounded-box SDF (2D) ───────────────────────────────────── */
+float sdRoundBox(vec2 p, float hw, float hh, float r) {
+  vec2 q = abs(p) - vec2(hw - r, hh - r);
+  float interior = min(max(q.x, q.y), 0.0);
+  float exterior = length(max(q, 0.0));
+  return interior + exterior - r;
+}
+
+/* ── thickness + normal ─────────────────────────────────────── */
+float jadeThickness(vec2 p, float hw, float hh) {
+  float d = abs(sdRoundBox(p, hw, hh, u_radius));
+  float t = u_thick - d * (u_thick - 0.008) / 0.18;
+  return clamp(t, 0.008, u_thick);
+}
+vec2 jadeNormal2D(vec2 p, float hw, float hh) {
+  float eps = 0.0002;
+  float dx = (sdRoundBox(p+vec2(eps,0.0), hw, hh, u_radius) -
+              sdRoundBox(p-vec2(eps,0.0), hw, hh, u_radius)) / (2.0*eps);
+  float dy = (sdRoundBox(p+vec2(0.0,eps), hw, hh, u_radius) -
+              sdRoundBox(p-vec2(0.0,eps), hw, hh, u_radius)) / (2.0*eps);
+  return normalize(vec2(dx, dy));
+}
+
+/* ── Fresnel (Schlick) ──────────────────────────────────────── */
+float fresnel(float cosT, float F0) {
+  return F0 + (1.0-F0) * pow(1.0 - clamp(cosT, 0.0, 1.0), 5.0);
+}
+
+/* ── jade glass shading ─────────────────────────────────────── */
+vec3 shadeJade(vec2 p, vec2 n2d, float thick, float hw, float hh) {
+  float nz = sqrt(clamp(1.0 - dot(n2d, n2d), 0.0, 1.0));
+  vec3 N3 = vec3(n2d, nz);
+  vec3 V  = vec3(0.0, 0.0, 1.0);
+  float cosT = dot(N3, V);
+
+  float F0 = pow((u_ior - 1.0) / (u_ior + 1.0), 2.0);
+  float fr  = fresnel(cosT, F0);
+
+  // ── Reflection ────────────────────────────────────────────
+  vec3 R = 2.0 * dot(N3, V) * N3 - V;
+  vec2 reflUV = clamp(p + normalize(R.xy) * 0.02, 0.0, 1.0);
+  vec3 reflColor = bg(reflUV);
+
+  // ── Refraction (Snell 2D) ─────────────────────────────────
+  float sinIn  = dot(n2d, vec2(0.0, 1.0));
+  float sinOut = sinIn / u_ior;
+  vec2 refractOffset = n2d * (sinOut - sinIn) * u_refr;
+  vec2 refractUV = clamp(p + refractOffset, 0.0, 1.0);
+  vec3 refractBg = bg(refractUV);
+
+  // ── Beer-Lambert ─────────────────────────────────────────
+  vec3 absorption = vec3(u_abs_r, u_abs_g, u_abs_b);
+  vec3 transmitted = exp(-absorption * thick * 10.0);
+  float hue = mod(u_hue / 360.0 + 0.33, 1.0);
+  vec3 jadeHSL = vec3(hue, u_sat, u_light);
+  vec3 jadeCol = hsl2rgb(jadeHSL) * 0.55;
+  vec3 refractionColor = refractBg + jadeCol * transmitted;
+
+  // ── SSS ───────────────────────────────────────────────────
+  vec3 Tdir = normalize(vec3(n2d * 0.4, 1.0));
+  float alignment = clamp(dot(V.xy, Tdir.xy) * 0.5 + 0.5, 0.0, 1.0);
+  float sssAtten = exp(-thick * 5.0);
+  vec3 sssColor = u_sss_color * alignment * sssAtten * u_sss;
+
+  // ── Specular (Phong) ───────────────────────────────────────
+  vec3 L = normalize(vec3(u_lx, u_ly, 0.0));
+  vec3 H = normalize(L + V);
+  float spec = pow(clamp(dot(N3, H), 0.0, 1.0), u_spec_p);
+  vec3 specColor = spec * vec3(0.3, 0.95, 0.5) * u_spec_i;
+
+  // ── Rim light ─────────────────────────────────────────────
+  float rim = pow(1.0 - cosT, 3.5);
+  vec3 rimColor = rim * vec3(0.2, 0.9, 0.4) * u_rim;
+
+  // ── Ambient ───────────────────────────────────────────────
+  vec3 ambient = vec3(0.90, 0.95, 1.0) * 0.06;
+
+  // ── Composite ─────────────────────────────────────────────
+  vec3 result = ambient
+    + fr * (reflColor + specColor * 0.3)
+    + (1.0 - fr) * refractionColor * u_glass
+    + sssColor
+    + specColor
+    + rimColor;
+
+  return clamp(result, 0.0, 1.0);
+}
+
+/* ── main ──────────────────────────────────────────────────── */
+void main() {
+  vec2 fc = gl_FragCoord.xy;
+  vec2 uv = fc / u_res;
+  float asp = u_res.x / u_res.y;
+
+  // World coords: x∈[-asp, asp], y∈[-1,1]
+  vec2 coord = (uv * 2.0 - 1.0) * vec2(asp, 1.0);
+
+  // Control half-size from aspect ratio + scale
+  float hw = u_scale;
+  float hh = u_scale / max(u_ar, 0.01);
+
+  // SDF
+  float d = sdRoundBox(coord, hw, hh, u_radius);
+  float hit = step(d, 0.0);
+
+  // Background
+  vec3 color = bg(uv);
+
+  // Shade jade region
+  if (hit > 0.5) {
+    vec2 n2d = jadeNormal2D(coord, hw, hh);
+    float thick = jadeThickness(coord, hw, hh);
+    vec3 jcol = shadeJade(uv, n2d, thick, hw, hh);
+    float soft = smoothstep(0.0, 0.003, -d);
+    color = mix(color, jcol, hit * soft);
+  }
+
+  // Vignette
+  vec2 vd = coord / vec2(asp, 1.0);
+  float vign = 1.0 - dot(vd, vd) * u_vign;
+  color *= vign;
+
+  // tone remap + gamma
+  color = clamp(color, 0.0, 1.0);
+  color = (color - 0.02) / (1.05 - 0.02);
+  color = pow(color, vec3(0.5));
+
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+// ── Compile ──────────────────────────────────────────────────────
+const prog = createProgram(VS, FS);
+gl.useProgram(prog);
+const u = Uniforms(prog);
+
+// ── BG Texture ────────────────────────────────────────────────────
+let bgTexture = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, bgTexture);
+// 1×1 placeholder (dark gray) so shader doesn't sample uninitialized memory
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+              new Uint8Array([20, 22, 28, 255]));
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+const uBgTex  = gl.getUniformLocation(prog, 'u_bg_tex');
+const uBgType = gl.getUniformLocation(prog, 'u_bg_type');
+let bgType = 0; // 0=procedural, 1=texture
+
+function loadBgImage(url) {
+  if (!url) {
+    bgType = 0;
+    gl.uniform1f(uBgType, 0.0);
+    render();
+    return;
+  }
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, bgTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    bgType = 1;
+    gl.uniform1f(uBgType, 1.0);
+    render();
+  };
+  img.onerror = () => {
+    console.warn('Failed to load BG image:', url);
+    bgType = 0;
+    gl.uniform1f(uBgType, 0.0);
+    render();
+  };
+  img.src = url;
+}
+
+document.getElementById('bg_clear').addEventListener('click', () => {
+  bgType = 0;
+  gl.uniform1f(uBgType, 0.0);
+  render();
+});
+
+document.getElementById('bg_file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, bgTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    bgType = 1;
+    gl.uniform1f(uBgType, 1.0);
+    render();
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+});
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+// ── Parameters ───────────────────────────────────────────────────
+const P = {
+  ar:     1.96,
+  scale:  1.00,
+  radius: 0.055,
+  border: 0.000,
+  ior:    1.52,
+  hue:    0,
+  sat:    0.75,
+  light:  0.30,
+  thick:  0.060,
+  glass:  0.50,
+  sss:    0.65,
+  sss_r:  140, sss_g: 211, sss_b: 50,
+  spec_p: 32,
+  spec_i: 0.30,
+  rim:    0.40,
+  lx:     0.55,
+  ly:     0.65,
+  abs_r:  3.20, abs_g: 0.45, abs_b: 2.40,
+  refr:   0.18,
+  vign:   0.30,
+  bgb:    1.00,
+  cw:     720,
+  ch:     450,
+};
+
+// ── Render ────────────────────────────────────────────────────────
+function sssColor() {
+  return [P.sss_r/255, P.sss_g/255, P.sss_b/255];
+}
+
+function render() {
+  const W = canvas.width, H = canvas.height;
+  gl.viewport(0, 0, W, H);
+  gl.uniform2f(u.u_res, W, H);
+  gl.uniform1f(u.u_ar,     P.ar);
+  gl.uniform1f(u.u_scale,  P.scale);
+  gl.uniform1f(u.u_radius, P.radius);
+  gl.uniform1f(u.u_border, P.border);
+  gl.uniform1f(u.u_ior,    P.ior);
+  gl.uniform1f(u.u_hue,    P.hue);
+  gl.uniform1f(u.u_sat,    P.sat);
+  gl.uniform1f(u.u_light,  P.light);
+  gl.uniform1f(u.u_thick,   P.thick);
+  gl.uniform1f(u.u_glass,  P.glass);
+  gl.uniform1f(u.u_sss,     P.sss);
+  gl.uniform3fv(u.u_sss_color, sssColor());
+  gl.uniform1f(u.u_spec_p,  P.spec_p);
+  gl.uniform1f(u.u_spec_i,  P.spec_i);
+  gl.uniform1f(u.u_rim,     P.rim);
+  gl.uniform1f(u.u_lx,      P.lx);
+  gl.uniform1f(u.u_ly,      P.ly);
+  gl.uniform1f(u.u_abs_r,   P.abs_r);
+  gl.uniform1f(u.u_abs_g,   P.abs_g);
+  gl.uniform1f(u.u_abs_b,   P.abs_b);
+  gl.uniform1f(u.u_refr,    P.refr);
+  gl.uniform1f(u.u_vign,     P.vign);
+  gl.uniform1f(u.u_bgb,     P.bgb);
+  gl.uniform1f(u.u_seed,    Math.random() * 100.0);
+  gl.uniform1i(uBgTex, 0);
+  gl.uniform1f(uBgType, bgType);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ── Slider fill track helper ───────────────────────────────────────
+function updateTrack(el) {
+  const min = parseFloat(el.min), max = parseFloat(el.max), val = parseFloat(el.value);
+  const pct = ((val - min) / (max - min) * 100).toFixed(1) + '%';
+  el.style.setProperty('--pct', pct);
+}
+
+// ── Slider definitions ─────────────────────────────────────────────
+const sliders = [
+  // Geometry
+  { id: 's_ar',     val: 'v_ar',     key: 'ar',     fmt: v => v.toFixed(2) },
+  { id: 's_scale', val: 'v_scale',  key: 'scale',  fmt: v => v.toFixed(2) },
+  { id: 's_radius',val: 'v_radius', key: 'radius', fmt: v => v.toFixed(3) },
+  { id: 's_border',val: 'v_border', key: 'border', fmt: v => v.toFixed(3) },
+  { id: 's_cw',    val: 'v_cw',     key: 'cw',     fmt: v => parseInt(v) },
+  { id: 's_ch',    val: 'v_ch',     key: 'ch',     fmt: v => parseInt(v) },
+  // Material
+  { id: 's_ior',   val: 'v_ior',    key: 'ior',     fmt: v => v.toFixed(2) },
+  { id: 's_thick', val: 'v_thick', key: 'thick',   fmt: v => v.toFixed(3) },
+  { id: 's_hue',   val: 'v_hue',   key: 'hue',     fmt: v => v.toFixed(0) + '°' },
+  { id: 's_sat',   val: 'v_sat',   key: 'sat',     fmt: v => v.toFixed(2) },
+  { id: 's_light', val: 'v_light',  key: 'light',   fmt: v => v.toFixed(2) },
+  { id: 's_glass', val: 'v_glass', key: 'glass',   fmt: v => v.toFixed(2) },
+  // Lighting
+  { id: 's_sss',   val: 'v_sss',   key: 'sss',     fmt: v => v.toFixed(2) },
+  { id: 's_sss_r', val: 'v_sss_color', key: 'sss_r', fmt: () => '#' + [P.sss_r, P.sss_g, P.sss_b].map(x => parseInt(x).toString(16).padStart(2,'0')).join('') },
+  { id: 's_sss_g', val: 'v_sss_color', key: 'sss_g', fmt: () => '' },
+  { id: 's_sss_b', val: 'v_sss_color', key: 'sss_b', fmt: () => '' },
+  { id: 's_spec_p',val: 'v_spec_p',key: 'spec_p',  fmt: v => parseInt(v) },
+  { id: 's_spec_i',val: 'v_spec_i',key: 'spec_i',  fmt: v => v.toFixed(2) },
+  { id: 's_rim',   val: 'v_rim',   key: 'rim',      fmt: v => v.toFixed(2) },
+  { id: 's_lx',    val: 'v_lx',   key: 'lx',       fmt: v => v.toFixed(2) },
+  { id: 's_ly',    val: 'v_ly',   key: 'ly',       fmt: v => v.toFixed(2) },
+  // Advanced
+  { id: 's_abs_r', val: 'v_abs_r',key: 'abs_r',    fmt: v => v.toFixed(2) },
+  { id: 's_abs_g', val: 'v_abs_g',key: 'abs_g',    fmt: v => v.toFixed(2) },
+  { id: 's_abs_b', val: 'v_abs_b',key: 'abs_b',    fmt: v => v.toFixed(2) },
+  { id: 's_refr',  val: 'v_refr', key: 'refr',     fmt: v => v.toFixed(2) },
+  { id: 's_vign',  val: 'v_vign', key: 'vign',      fmt: v => v.toFixed(2) },
+  { id: 's_bgb',   val: 'v_bgb', key: 'bgb',       fmt: v => v.toFixed(2) },
+];
+
+sliders.forEach(({ id, val, key, fmt }) => {
+  const el  = document.getElementById(id);
+  const lbl = document.getElementById(val);
+  if (!el) return;
+
+  updateTrack(el);
+  el.addEventListener('input', () => {
+    P[key] = parseFloat(el.value);
+    if (lbl) lbl.textContent = fmt(P[key]);
+    updateTrack(el);
+
+    // Canvas resize
+    if (key === 'cw' || key === 'ch') {
+      canvas.width  = P.cw;
+      canvas.height = P.ch;
+    }
+    render();
+  });
+});
+
+// ── Tabs ───────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Initial render ─────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
