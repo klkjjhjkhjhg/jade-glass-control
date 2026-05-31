@@ -55,6 +55,22 @@
     color: var(--text-dim);
     letter-spacing: 0.03em;
   }
+  .header-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--track-fill);
+    color: var(--jade-bright);
+    border: 1px solid var(--jade-dark);
+  }
+  .header-badge.v1 {
+    background: #1a1a28;
+    color: #8888aa;
+    border-color: #333355;
+  }
 
   /* ── Canvas ─────────────────────────────────────────── */
   .canvas-wrap {
@@ -172,6 +188,7 @@
     outline: none;
     cursor: pointer;
     position: relative;
+    touch-action: manipulation;
   }
   input[type=range]::-webkit-slider-runnable-track {
     height: 3px;
@@ -184,20 +201,21 @@
   }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 13px; height: 13px;
+    width: 24px; height: 24px;
     border-radius: 50%;
     background: var(--jade-bright);
     border: 2px solid var(--bg);
     box-shadow: 0 0 6px rgba(64,224,112,0.5);
     cursor: pointer;
-    margin-top: -5px;
+    margin-top: -10px;
     transition: box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
   }
   input[type=range]::-webkit-slider-thumb:hover {
     box-shadow: 0 0 10px rgba(64,224,112,0.8);
   }
   input[type=range]::-moz-range-thumb {
-    width: 13px; height: 13px;
+    width: 24px; height: 24px;
     border-radius: 50%;
     background: var(--jade-bright);
     border: 2px solid var(--bg);
@@ -215,7 +233,7 @@
   }
 
   /* ── BG URL row ─────────────────────────────────────────── */
-  .bg-url-row {
+  .bg-url-row, .export-row {
     width: 100%;
     max-width: 720px;
     display: flex;
@@ -223,7 +241,7 @@
     gap: 8px;
     margin-top: 8px;
   }
-  .bg-url-label {
+  .bg-url-label, .export-label {
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -314,6 +332,150 @@
     .tabs { gap: 1px; padding: 3px; }
     .panel { padding: 16px 16px 20px; }
   }
+
+  /* ── Preset Panel ────────────────────────────────────────── */
+  .preset-bar {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .preset-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .preset-select {
+    flex: 1;
+    min-width: 140px;
+    background: var(--track);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--jade-bright);
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .preset-select:focus { border-color: var(--jade); }
+  .preset-select option { background: var(--panel); color: var(--text); }
+
+  .preset-btn {
+    padding: 6px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--jade-dark);
+    color: var(--jade-bright);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .preset-btn:hover { background: var(--jade); }
+  .preset-btn.danger { background: #7a1a1a; }
+  .preset-btn.danger:hover { background: #aa3030; }
+
+  .preset-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+  }
+
+  .preset-hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .preset-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .preset-item:last-child { border-bottom: none; }
+  .preset-item-name {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--jade);
+  }
+  .preset-item-name.builtin { color: var(--accent); }
+  .preset-item-actions { display: flex; gap: 6px; }
+  .preset-item-btn {
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    background: var(--jade-dark);
+    color: var(--jade-bright);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-transform: uppercase;
+  }
+  .preset-item-btn:hover { background: var(--jade); }
+  .preset-item-btn.del { background: #6b1515; }
+  .preset-item-btn.del:hover { background: #991f1f; }
+
+  .preset-save-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .preset-save-modal.open { display: flex; }
+  .preset-save-box {
+    background: var(--panel);
+    border: 1px solid var(--border-bright);
+    border-radius: 10px;
+    padding: 24px;
+    width: 300px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  .preset-save-box h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--jade-bright);
+    margin-bottom: 16px;
+    letter-spacing: 0.04em;
+  }
+  .preset-save-box input {
+    width: 100%;
+    background: var(--track);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    margin-bottom: 16px;
+    font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .preset-save-box input:focus { border-color: var(--jade); }
+  .preset-save-box .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
 </style>
 </head>
 <body>
@@ -321,6 +483,7 @@
 <div class="header">
   <span class="header-title">Jade Glass Control</span>
   <span class="header-sub">WebGL Shader — Real-time Material Preview</span>
+  <span id="webgl-badge" class="header-badge"></span>
 </div>
 
 <div class="canvas-wrap">
@@ -333,10 +496,17 @@
   <button id="bg_clear" class="bg-load-btn">Reset</button>
 </div>
 
+<div class="export-row">
+  <span class="export-label">Export</span>
+  <button id="export_png_btn" class="bg-load-btn">📥 Export PNG</button>
+  <button id="copy_clipboard_btn" class="bg-load-btn">📋 Copy to Clipboard</button>
+</div>
+
 <div class="tabs">
   <button class="tab active" data-tab="geometry">Geometry</button>
   <button class="tab" data-tab="material">Material</button>
   <button class="tab" data-tab="lighting">Lighting</button>
+  <button class="tab" data-tab="preset">Preset</button>
   <button class="tab" data-tab="advanced">Advanced</button>
 </div>
 
@@ -579,7 +749,39 @@
   </div>
 </div>
 
+<!-- Preset Panel -->
+<div class="panel" id="panel-preset">
+  <div class="section-label">预设管理</div>
+
+  <div class="preset-bar" style="margin-top:0">
+    <span class="preset-label">选择预设</span>
+    <select class="preset-select" id="preset_select">
+      <option value="">— 选择预设 —</option>
+    </select>
+    <button class="preset-btn" id="preset_load_btn">加载</button>
+    <div class="preset-divider"></div>
+    <button class="preset-btn" id="preset_save_btn">💾 保存当前</button>
+    <button class="preset-btn danger" id="preset_delete_btn">🗑 删除</button>
+  </div>
+  <div class="preset-hint">内置预设不可删除，用户预设可自由编辑</div>
+
+  <div class="section-label" style="margin-top:18px">预设列表</div>
+  <div id="preset_list"></div>
+</div>
+
 <p class="footer">实时渲染 · 拖动滑杆即时更新 · WebGL fragment shader</p>
+
+<!-- Save Preset Modal -->
+<div class="preset-save-modal" id="preset_save_modal">
+  <div class="preset-save-box">
+    <h3>保存当前参数为预设</h3>
+    <input type="text" id="preset_name_input" placeholder="输入预设名称" maxlength="30">
+    <div class="modal-actions">
+      <button class="preset-btn" id="preset_cancel_btn">取消</button>
+      <button class="preset-btn" id="preset_confirm_save_btn">保存</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /* ===================================================================
@@ -587,8 +789,34 @@
    =================================================================== */
 
 const canvas = document.getElementById('c');
-const gl = canvas.getContext('webgl', { antialias: false, alpha: false });
+
+// ── WebGL 2.0 auto-detect with fallback ───────────────────────────
+let gl2 = null;
+try { gl2 = canvas.getContext('webgl2', { antialias: false, alpha: false }); } catch(e) {}
+
+let glVersion = 1;
+let ext_float = false;
+
+if (gl2) {
+  gl = gl2;
+  glVersion = 2;
+  const ext = gl.getExtension('OES_texture_float_linear');
+  if (ext) ext_float = true;
+} else {
+  gl = canvas.getContext('webgl', { antialias: false, alpha: false });
+}
 if (!gl) alert('WebGL not supported');
+
+// ── UI: WebGL version badge ──────────────────────────────────────
+(function() {
+  const badge = document.getElementById('webgl-badge');
+  if (glVersion === 2) {
+    badge.textContent = 'WebGL 2.0' + (ext_float ? ' + float' : '');
+  } else {
+    badge.textContent = 'WebGL 1.0';
+    badge.classList.add('v1');
+  }
+})();
 
 // ── Shader helpers ──────────────────────────────────────────────
 function compileShader(type, src) {
@@ -1029,6 +1257,17 @@ sliders.forEach(({ id, val, key, fmt }) => {
     }
     render();
   });
+  el.addEventListener('dblclick', () => {
+    el.value = el.defaultValue;
+    P[key] = parseFloat(el.value);
+    if (lbl) lbl.textContent = fmt(P[key]);
+    updateTrack(el);
+    if (key === 'cw' || key === 'ch') {
+      canvas.width  = P.cw;
+      canvas.height = P.ch;
+    }
+    render();
+  });
 });
 
 // ── Tabs ───────────────────────────────────────────────────────────
@@ -1041,8 +1280,287 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
-// ── Initial render ─────────────────────────────────────────────────
+// ── Preset System ────────────────────────────────────────────────────
+const STORAGE_KEY = 'jade-glass-presets';
+
+// Default presets
+const DEFAULT_PRESETS = [
+  {
+    id: 'builtin_jade',
+    name: '翠绿玉石',
+    builtin: true,
+    params: {
+      ar: 1.96, scale: 1.00, radius: 0.055, border: 0.000,
+      ior: 1.52, hue: 0, sat: 0.75, light: 0.30,
+      thick: 0.060, glass: 0.50,
+      sss: 0.65, sss_r: 140, sss_g: 211, sss_b: 50,
+      spec_p: 32, spec_i: 0.30, rim: 0.40,
+      lx: 0.55, ly: 0.65,
+      abs_r: 3.20, abs_g: 0.45, abs_b: 2.40,
+      refr: 0.18, vign: 0.30, bgb: 1.00, cw: 720, ch: 450,
+    },
+  },
+  {
+    id: 'builtin_deepsea',
+    name: '深海玻璃',
+    builtin: true,
+    params: {
+      ar: 1.80, scale: 1.00, radius: 0.080, border: 0.000,
+      ior: 1.33, hue: 60, sat: 0.65, light: 0.25,
+      thick: 0.120, glass: 0.70,
+      sss: 1.20, sss_r: 60, sss_g: 180, sss_b: 220,
+      spec_p: 48, spec_i: 0.40, rim: 0.55,
+      lx: 0.50, ly: 0.60,
+      abs_r: 1.00, abs_g: 0.30, abs_b: 2.80,
+      refr: 0.22, vign: 0.35, bgb: 1.00, cw: 720, ch: 450,
+    },
+  },
+  {
+    id: 'builtin_amber',
+    name: '琥珀透光',
+    builtin: true,
+    params: {
+      ar: 1.60, scale: 0.95, radius: 0.120, border: 0.000,
+      ior: 1.60, hue: 120, sat: 0.80, light: 0.35,
+      thick: 0.080, glass: 0.40,
+      sss: 0.80, sss_r: 220, sss_g: 140, sss_b: 30,
+      spec_p: 24, spec_i: 0.20, rim: 0.30,
+      lx: 0.45, ly: 0.55,
+      abs_r: 0.50, abs_g: 1.20, abs_b: 3.50,
+      refr: 0.15, vign: 0.25, bgb: 0.90, cw: 720, ch: 450,
+    },
+  },
+];
+
+function loadPresets() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePresets(presets) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+  } catch (e) {
+    console.warn('Failed to save presets:', e);
+  }
+}
+
+function buildPresetParams() {
+  return {
+    ar: P.ar, scale: P.scale, radius: P.radius, border: P.border,
+    ior: P.ior, hue: P.hue, sat: P.sat, light: P.light,
+    thick: P.thick, glass: P.glass,
+    sss: P.sss, sss_r: P.sss_r, sss_g: P.sss_g, sss_b: P.sss_b,
+    spec_p: P.spec_p, spec_i: P.spec_i, rim: P.rim,
+    lx: P.lx, ly: P.ly,
+    abs_r: P.abs_r, abs_g: P.abs_g, abs_b: P.abs_b,
+    refr: P.refr, vign: P.vign, bgb: P.bgb, cw: P.cw, ch: P.ch,
+  };
+}
+
+function applyPresetParams(params) {
+  Object.keys(params).forEach(key => {
+    if (key in P) P[key] = params[key];
+  });
+}
+
+function syncSlidersFromP() {
+  Object.keys(P).forEach(key => {
+    const el = document.getElementById('s_' + key);
+    if (el) {
+      el.value = P[key];
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+}
+
+// Lerp helper
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// Smooth transition state
+let transTarget = null;
+let transFrom = null;
+let transProgress = 0;
+const TRANS_DURATION = 300; // ms
+
+function startTransition(targetParams) {
+  transFrom = {};
+  Object.keys(targetParams).forEach(k => { transFrom[k] = P[k]; });
+  transTarget = targetParams;
+  transProgress = 0;
+}
+
+function tickTransition(dt) {
+  if (!transTarget || transProgress >= 1) return;
+  transProgress = Math.min(1, transProgress + dt / TRANS_DURATION);
+  const t = 1 - Math.pow(1 - transProgress, 3); // ease-out cubic
+  Object.keys(transTarget).forEach(k => {
+    if (k in P) P[k] = lerp(transFrom[k], transTarget[k], t);
+  });
+  syncSlidersFromP();
+  render();
+}
+
+// Preset list rendering
+function renderPresetList() {
+  const container = document.getElementById('preset_list');
+  const userPresets = loadPresets();
+  const all = [...DEFAULT_PRESETS, ...userPresets];
+
+  let html = '';
+  all.forEach(preset => {
+    const isBuiltin = !!preset.builtin;
+    html += `<div class="preset-item">
+      <span class="preset-item-name ${isBuiltin ? 'builtin' : ''}">${preset.name}</span>
+      <div class="preset-item-actions">
+        <button class="preset-item-btn" data-preset-id="${preset.id}" data-action="load">加载</button>
+        ${!isBuiltin ? `<button class="preset-item-btn del" data-preset-id="${preset.id}" data-action="delete">删除</button>` : ''}
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html || '<div style="color:var(--text-dim);font-size:12px">暂无自定义预设</div>';
+
+  // Update select dropdown
+  const select = document.getElementById('preset_select');
+  select.innerHTML = '<option value="">— 选择预设 —</option>';
+  all.forEach(preset => {
+    const opt = document.createElement('option');
+    opt.value = preset.id;
+    opt.textContent = (preset.builtin ? '◈ ' : '◇ ') + preset.name;
+    select.appendChild(opt);
+  });
+}
+
+// Load a preset with smooth transition
+function loadPresetById(id) {
+  const builtin = DEFAULT_PRESETS.find(p => p.id === id);
+  if (builtin) {
+    startTransition(builtin.params);
+    return;
+  }
+  const userPresets = loadPresets();
+  const user = userPresets.find(p => p.id === id);
+  if (user) startTransition(user.params);
+}
+
+document.getElementById('preset_select').addEventListener('change', e => {
+  // visual selection only, actual load on button click
+});
+
+document.getElementById('preset_load_btn').addEventListener('click', () => {
+  const sel = document.getElementById('preset_select');
+  if (sel.value) loadPresetById(sel.value);
+});
+
+document.getElementById('preset_save_btn').addEventListener('click', () => {
+  document.getElementById('preset_save_modal').classList.add('open');
+  document.getElementById('preset_name_input').value = '';
+  document.getElementById('preset_name_input').focus();
+});
+
+document.getElementById('preset_cancel_btn').addEventListener('click', () => {
+  document.getElementById('preset_save_modal').classList.remove('open');
+});
+
+document.getElementById('preset_confirm_save_btn').addEventListener('click', () => {
+  const name = document.getElementById('preset_name_input').value.trim();
+  if (!name) return;
+  const userPresets = loadPresets();
+  userPresets.push({
+    id: 'user_' + Date.now(),
+    name,
+    builtin: false,
+    params: buildPresetParams(),
+  });
+  savePresets(userPresets);
+  renderPresetList();
+  document.getElementById('preset_save_modal').classList.remove('open');
+});
+
+document.getElementById('preset_delete_btn').addEventListener('click', () => {
+  const sel = document.getElementById('preset_select');
+  const id = sel.value;
+  if (!id) return;
+  const builtin = DEFAULT_PRESETS.find(p => p.id === id);
+  if (builtin) { alert('内置预设不可删除'); return; }
+  let userPresets = loadPresets();
+  userPresets = userPresets.filter(p => p.id !== id);
+  savePresets(userPresets);
+  renderPresetList();
+});
+
+// Delegated click for preset list buttons
+document.getElementById('preset_list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const id = btn.dataset.presetId;
+  const action = btn.dataset.action;
+  if (action === 'load') loadPresetById(id);
+  if (action === 'delete') {
+    let userPresets = loadPresets();
+    userPresets = userPresets.filter(p => p.id !== id);
+    savePresets(userPresets);
+    renderPresetList();
+  }
+});
+
+// Close modal on backdrop click
+document.getElementById('preset_save_modal').addEventListener('click', e => {
+  if (e.target.id === 'preset_save_modal') {
+    document.getElementById('preset_save_modal').classList.remove('open');
+  }
+});
+
+// Animation loop for smooth transitions
+let lastTime = null;
+function animateTransition(ts) {
+  if (lastTime === null) lastTime = ts;
+  const dt = ts - lastTime;
+  lastTime = ts;
+  tickTransition(dt);
+  requestAnimationFrame(animateTransition);
+}
+requestAnimationFrame(animateTransition);
+
+// Export PNG — download via hidden <a>
+function exportPNG() {
+  const canvas = document.getElementById('c');
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'jade-glass-' + Date.now() + '.png';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// Copy canvas to clipboard with graceful fallback
+async function copyToClipboard() {
+  const canvas = document.getElementById('c');
+  try {
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': blob })
+    ]);
+  } catch (err) {
+    // Fallback: trigger PNG download instead
+    console.warn('Clipboard API unavailable, falling back to download:', err);
+    exportPNG();
+  }
+}
+
+document.getElementById('export_png_btn').addEventListener('click', exportPNG);
+document.getElementById('copy_clipboard_btn').addEventListener('click', copyToClipboard);
+
+// Initial render
 render();
+renderPresetList();
 </script>
 </body>
 </html>
