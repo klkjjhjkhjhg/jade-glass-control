@@ -1,22 +1,13 @@
 #!/opt/anaconda3/bin/python3
-"""Test exportAllLayers in real browser with preserveDrawingBuffer fix."""
-import os, sys
+"""Test all 8 debug passes via drawImage - verify non-blank pixels."""
+import os, sys, base64, io
+from PIL import Image
 from playwright.sync_api import sync_playwright
-
-DOWNLOADS = '/Users/klkjjhjkhjhg/Downloads'
-os.makedirs(DOWNLOADS, exist_ok=True)
-
-# Clean downloads first
-for f in os.listdir(DOWNLOADS):
-    if f.endswith('.png') and f.startswith('0'):
-        os.remove(os.path.join(DOWNLOADS, f))
-        print(f'Removed {f}')
 
 with sync_playwright() as pw:
     browser = pw.chromium.launch(headless=True)
-    ctx = browser.new_context(downloads_path=DOWNLOADS)
+    ctx = browser.new_context()
 
-    # Inject preserveDrawingBuffer fix BEFORE page loads
     ctx.add_init_script("""
         (() => {
             const orig = HTMLCanvasElement.prototype.getContext;
@@ -34,57 +25,47 @@ with sync_playwright() as pw:
     page.on('console', lambda msg: print(f'CONSOLE: {msg.text}'))
     page.on('pageerror', lambda err: print(f'ERROR: {err}'))
 
-    # Load the page
     page.goto('http://localhost:8765/', timeout=15000)
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(3000)  # Wait for GL context to stabilize
 
-    # Verify WebGL works
-    result = page.evaluate("""() => {
-        const c = document.querySelector('canvas');
-        if (!c) return 'NO CANVAS';
-        const gl = c.getContext('webgl2') || c.getContext('webgl');
-        if (!gl) return 'NO GL';
-        return 'glVersion=' + (gl instanceof WebGL2RenderingContext ? 2 : 1);
-    }""")
+    result = page.evaluate("() => { const c = document.querySelector('canvas'); if(!c) return 'NO CANVAS'; const gl = c.getContext('webgl2') || c.getContext('webgl'); if(!gl) return 'NO GL'; return 'glVersion=' + (gl instanceof WebGL2RenderingContext ? 2 : 1); }")
     print(f'WebGL: {result}')
 
-    # Check canvas size
-    size = page.evaluate("""() => {
-        const c = document.querySelector('canvas');
-        return c ? c.width + 'x' + c.height : 'no canvas';
-    }""")
+    size = page.evaluate("() => { const c = document.querySelector('canvas'); return c ? c.width+'x'+c.height : 'no canvas'; }")
     print(f'Canvas: {size}')
 
-    # Check toDataURL (should be non-zero after render)
-    url_len = page.evaluate("""() => {
-        const c = document.querySelector('canvas');
-        return c ? c.toDataURL('image/png').length : 0;
-    }""")
+    url_len = page.evaluate("() => { const c = document.querySelector('canvas'); return c ? c.toDataURL('image/png').length : 0; }")
     print(f'toDataURL length: {url_len} (non-zero = rendering OK)')
 
-    # Click Debug Layers button
-    page.click('#debug_export')
-    page.wait_for_timeout(3000)
+    # Test each debug pass - use page's existing globals
+    labels = ['00_normal','01_bg_texture','02_geometry','03_normal','04_shading','05_fresnel','06_sss','07_refraction']
+    print(f'\n--- Debug Pass Export Test ---')
+    for i, label in enumerate(labels):
+        data_url = page.evaluate(f"""
+            () => {{
+                // Use existing global 'gl' and 'uDebug' from page scope
+                gl.uniform1f(uDebug, {i});
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                const c2 = document.createElement('canvas');
+                c2.width = document.querySelector('canvas').width;
+                c2.height = document.querySelector('canvas').height;
+                c2.getContext('2d').drawImage(document.querySelector('canvas'), 0, 0);
+                return c2.toDataURL('image/png');
+            }}
+        """)
+        img_data = base64.b64decode(data_url.split(',')[1])
+        img = Image.open(io.BytesIO(img_data))
+        px = img.load()
+        w, h = img.size
+        center = px[w//2, h//2]
+        non_black = sum(1 for y in range(h) for x in range(w) if sum(px[x,y][:3]) > 30)
+        total = w * h
+        pct = non_black / total * 100
+        status = 'OK' if non_black > 1000 else 'ZERO/BLANK'
+        print(f'  [{i:02d}] {label}: center={center}, {non_black}/{total} non-black ({pct:.1f}%) [{status}] len={len(data_url)}')
 
-    # Count downloaded files
-    downloaded = sorted([f for f in os.listdir(DOWNLOADS) if f.endswith('.png') and f.startswith('0')])
-    print(f'\nDownloaded files ({len(downloaded)}):')
-    for f in downloaded:
-        path = os.path.join(DOWNLOADS, f)
-        size_kb = os.path.getsize(path) / 1024
-        print(f'  {f}: {size_kb:.1f} KB')
-
-    # Check pixel values if any file downloaded
-    if downloaded:
-        import struct, zlib
-        for fname in downloaded[:2]:  # Check first 2
-            path = os.path.join(DOWNLOADS, fname)
-            with open(path, 'rb') as f:
-                data = f.read()
-            print(f'\n{f} raw bytes: {len(data)}')
-            # Just check signature
-            PNG_SIG = b'\x89PNG\r\n\x1a\n'
-            print(f'  PNG signature OK: {data[:8] == PNG_SIG}')
+    # Reset to normal pass
+    page.evaluate("() => { gl.uniform1f(uDebug, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }")
+    print('\nDone.')
 
     browser.close()
-    print('\nDone.')
